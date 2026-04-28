@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -185,9 +186,17 @@
             font-weight: 700;
         }
 
-        .stat-value.success { color: #4ade80; }
-        .stat-value.fail { color: #f87171; }
-        .stat-value.total { color: #60a5fa; }
+        .stat-value.success {
+            color: #4ade80;
+        }
+
+        .stat-value.fail {
+            color: #f87171;
+        }
+
+        .stat-value.total {
+            color: #60a5fa;
+        }
 
         .stat-label {
             font-size: 0.85rem;
@@ -308,7 +317,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .progress-bar {
@@ -376,9 +387,11 @@
             header h1 {
                 font-size: 1.8rem;
             }
+
             .btn-group {
                 flex-direction: column;
             }
+
             .btn {
                 width: 100%;
                 justify-content: center;
@@ -386,6 +399,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -394,14 +408,6 @@
         </header>
 
         <div class="card">
-            <div class="cors-notice">
-                <strong>⚠️ 注意：CORS 限制</strong>
-                Cloudflare API 可能存在跨域限制。如果浏览器中直接检测失败，建议：
-                <br>1. 使用支持关闭 CORS 的浏览器插件（如 CORS Unblock）
-                <br>2. 或将本文件部署到本地/远程服务器通过后端代理调用
-                <br>3. 或在 Node.js 环境中运行类似逻辑的脚本
-            </div>
-
             <div class="card-title">
                 <span class="icon">🔧</span>
                 检测配置
@@ -409,8 +415,10 @@
             <select class="model-select" id="modelSelect">
                 <option value="@cf/meta/llama-3.1-8b-instruct">@cf/meta/llama-3.1-8b-instruct</option>
                 <option value="@cf/moonshotai/kimi-k2.6" selected>@cf/moonshotai/kimi-k2.6</option>
-                <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">@cf/meta/llama-3.3-70b-instruct-fp8-fast</option>
-                <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b">@cf/deepseek-ai/deepseek-r1-distill-qwen-32b</option>
+                <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">@cf/meta/llama-3.3-70b-instruct-fp8-fast
+                </option>
+                <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b">
+                    @cf/deepseek-ai/deepseek-r1-distill-qwen-32b</option>
                 <option value="@cf/qwen/qwen2.5-coder-32b-instruct">@cf/qwen/qwen2.5-coder-32b-instruct</option>
             </select>
         </div>
@@ -420,7 +428,8 @@
                 <span class="icon">📝</span>
                 凭据列表
             </div>
-            <textarea id="credentialsInput" placeholder="每行输入一组凭据，格式：ACCOUNT_ID CLOUDFLARE_API_TOKEN&#10;&#10;例如：&#10;1234567890abcdef1234567890abcdef your-api-token-here&#10;abcdef1234567890abcdef1234567890 another-api-token"></textarea>
+            <textarea id="credentialsInput"
+                placeholder="每行输入一组凭据，格式：ACCOUNT_ID CLOUDFLARE_API_TOKEN&#10;&#10;例如：&#10;1234567890abcdef1234567890abcdef your-api-token-here&#10;abcdef1234567890abcdef1234567890 another-api-token"></textarea>
             <div class="hint">
                 <strong>格式说明：</strong>每行一组凭据，使用 <strong>空格</strong> 分隔 ACCOUNT_ID 和 API_TOKEN<br>
                 也支持 JSON 格式：{"accountId": "xxx", "token": "xxx"}
@@ -521,73 +530,39 @@ q6r7s8t9u0v1w2x3y4z5a6b7c8d9e0f your-api-token-example-2`;
 
         async function checkCredential(accountId, token, model) {
             const startTime = performance.now();
-            const baseURL = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
 
             try {
-                const response = await fetch(baseURL, {
+                const response = await fetch('/api/check', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        model: model,
-                        messages: [
-                            { role: 'system', content: 'You are a helpful assistant. Reply with "OK" only.' },
-                            { role: 'user', content: 'Hello!' }
-                        ],
-                        max_tokens: 5
+                        accountId: accountId,
+                        token: token,
+                        model: model
                     })
                 });
 
                 const endTime = performance.now();
                 const duration = Math.round(endTime - startTime);
-
-                if (response.ok) {
-                    const data = await response.json();
-                    // 检查是否返回了有效的 AI 响应
-                    if (data.success !== false && (data.result || data.choices)) {
-                        return {
-                            success: true,
-                            duration,
-                            statusCode: response.status,
-                            message: '凭据可用'
-                        };
-                    }
-                }
-
-                let errorMsg = '凭据无效或权限不足';
-                try {
-                    const errorData = await response.json();
-                    if (errorData.errors && errorData.errors.length > 0) {
-                        errorMsg = errorData.errors.map(e => e.message || e).join(', ');
-                    } else if (errorData.message) {
-                        errorMsg = errorData.message;
-                    }
-                } catch (e) {
-                    errorMsg = `HTTP ${response.status}: ${response.statusText}`;
-                }
+                const data = await response.json();
 
                 return {
-                    success: false,
+                    success: data.success,
                     duration,
-                    statusCode: response.status,
-                    message: errorMsg
+                    statusCode: data.statusCode || response.status,
+                    message: data.message || (data.success ? '凭据可用' : '凭据无效')
                 };
             } catch (error) {
                 const endTime = performance.now();
                 const duration = Math.round(endTime - startTime);
 
-                let errorMsg = error.message;
-                if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                    errorMsg = '网络错误或 CORS 限制，请检查网络连接或使用代理';
-                }
-
                 return {
                     success: false,
                     duration,
                     statusCode: 0,
-                    message: errorMsg
+                    message: error.message || '网络请求失败'
                 };
             }
         }
@@ -687,11 +662,12 @@ q6r7s8t9u0v1w2x3y4z5a6b7c8d9e0f your-api-token-example-2`;
         }
 
         // 支持 Ctrl+Enter 快捷键
-        document.getElementById('credentialsInput').addEventListener('keydown', function(e) {
+        document.getElementById('credentialsInput').addEventListener('keydown', function (e) {
             if (e.ctrlKey && e.key === 'Enter') {
                 startCheck();
             }
         });
     </script>
 </body>
+
 </html>
