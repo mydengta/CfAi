@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflare 凭据批量检测工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: #8892b0;
+            font-size: 1.1rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title .icon {
+            font-size: 1.4rem;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 16px;
+            color: #e0e0e0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.95rem;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #f5576c;
+        }
+
+        textarea::placeholder {
+            color: #555;
+        }
+
+        .hint {
+            margin-top: 10px;
+            padding: 12px 16px;
+            background: rgba(245, 87, 108, 0.1);
+            border-left: 4px solid #f5576c;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #b0b0b0;
+            line-height: 1.6;
+        }
+
+        .hint code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            color: #f5576c;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 14px 32px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(245, 87, 108, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .stat-value.success { color: #4ade80; }
+        .stat-value.fail { color: #f87171; }
+        .stat-value.total { color: #60a5fa; }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #8892b0;
+            margin-top: 4px;
+        }
+
+        .result-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .result-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 16px;
+            border-left: 4px solid;
+            transition: transform 0.2s;
+        }
+
+        .result-item:hover {
+            transform: translateX(4px);
+        }
+
+        .result-item.success {
+            border-left-color: #4ade80;
+        }
+
+        .result-item.fail {
+            border-left-color: #f87171;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .result-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .result-status .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .result-item.success .dot {
+            background: #4ade80;
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+        }
+
+        .result-item.fail .dot {
+            background: #f87171;
+            box-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
+        }
+
+        .result-time {
+            font-size: 0.85rem;
+            color: #8892b0;
+        }
+
+        .result-details {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+
+        .result-details .row {
+            display: flex;
+            gap: 8px;
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+
+        .result-details .label {
+            color: #8892b0;
+            min-width: 90px;
+            flex-shrink: 0;
+        }
+
+        .result-details .value {
+            color: #e0e0e0;
+            font-family: monospace;
+        }
+
+        .result-details .value.masked {
+            filter: blur(4px);
+            transition: filter 0.2s;
+        }
+
+        .result-details .value.masked:hover {
+            filter: blur(0);
+        }
+
+        .error-msg {
+            color: #f87171;
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+            transition: width 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-size: 0.85rem;
+            color: #8892b0;
+            margin-top: 8px;
+        }
+
+        .model-select {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+            cursor: pointer;
+        }
+
+        .model-select:focus {
+            outline: none;
+            border-color: #f5576c;
+        }
+
+        .model-select option {
+            background: #1a1a2e;
+            color: #e0e0e0;
+        }
+
+        .cors-notice {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            color: #ffc107;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .cors-notice strong {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        @media (max-width: 640px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+            .btn-group {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Cloudflare 凭据批量检测工具</h1>
+            <p>批量检测 ACCOUNT_ID 和 CLOUDFLARE_API_TOKEN 的可用性</p>
+        </header>
+
+        <div class="card">
+            <div class="cors-notice">
+                <strong>⚠️ 注意：CORS 限制</strong>
+                Cloudflare API 可能存在跨域限制。如果浏览器中直接检测失败，建议：
+                <br>1. 使用支持关闭 CORS 的浏览器插件（如 CORS Unblock）
+                <br>2. 或将本文件部署到本地/远程服务器通过后端代理调用
+                <br>3. 或在 Node.js 环境中运行类似逻辑的脚本
+            </div>
+
+            <div class="card-title">
+                <span class="icon">🔧</span>
+                检测配置
+            </div>
+            <select class="model-select" id="modelSelect">
+                <option value="@cf/meta/llama-3.1-8b-instruct">@cf/meta/llama-3.1-8b-instruct</option>
+                <option value="@cf/moonshotai/kimi-k2.6" selected>@cf/moonshotai/kimi-k2.6</option>
+                <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">@cf/meta/llama-3.3-70b-instruct-fp8-fast</option>
+                <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b">@cf/deepseek-ai/deepseek-r1-distill-qwen-32b</option>
+                <option value="@cf/qwen/qwen2.5-coder-32b-instruct">@cf/qwen/qwen2.5-coder-32b-instruct</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <span class="icon">📝</span>
+                凭据列表
+            </div>
+            <textarea id="credentialsInput" placeholder="每行输入一组凭据，格式：ACCOUNT_ID CLOUDFLARE_API_TOKEN&#10;&#10;例如：&#10;1234567890abcdef1234567890abcdef your-api-token-here&#10;abcdef1234567890abcdef1234567890 another-api-token"></textarea>
+            <div class="hint">
+                <strong>格式说明：</strong>每行一组凭据，使用 <strong>空格</strong> 分隔 ACCOUNT_ID 和 API_TOKEN<br>
+                也支持 JSON 格式：{"accountId": "xxx", "token": "xxx"}
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" id="checkBtn" onclick="startCheck()">
+                    <span>🔍</span>
+                    <span id="btnText">开始检测</span>
+                </button>
+                <button class="btn btn-secondary" onclick="loadExample()">
+                    <span>📋</span>
+                    加载示例
+                </button>
+                <button class="btn btn-secondary" onclick="clearInput()">
+                    <span>🗑️</span>
+                    清空
+                </button>
+            </div>
+            <div class="progress-bar" id="progressBar" style="display: none;">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div class="progress-text" id="progressText"></div>
+        </div>
+
+        <div class="card results" id="resultsCard">
+            <div class="card-title">
+                <span class="icon">📊</span>
+                检测结果
+            </div>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value total" id="statTotal">0</div>
+                    <div class="stat-label">总计</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value success" id="statSuccess">0</div>
+                    <div class="stat-label">可用</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value fail" id="statFail">0</div>
+                    <div class="stat-label">不可用</div>
+                </div>
+            </div>
+            <div class="result-list" id="resultList"></div>
+        </div>
+    </div>
+
+    <script>
+        function loadExample() {
+            const example = `a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p your-api-token-example-1
+q6r7s8t9u0v1w2x3y4z5a6b7c8d9e0f your-api-token-example-2`;
+            document.getElementById('credentialsInput').value = example;
+        }
+
+        function clearInput() {
+            document.getElementById('credentialsInput').value = '';
+            document.getElementById('resultsCard').classList.remove('active');
+        }
+
+        function parseCredentials(input) {
+            const lines = input.trim().split('\n').filter(line => line.trim());
+            const credentials = [];
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                // 尝试解析 JSON 格式
+                try {
+                    const json = JSON.parse(trimmed);
+                    if (json.accountId && json.token) {
+                        credentials.push({ accountId: json.accountId, token: json.token });
+                        continue;
+                    }
+                } catch (e) {
+                    // 不是 JSON，继续尝试其他格式
+                }
+
+                // 解析空格分隔格式
+                const parts = trimmed.split(/\s+/).map(p => p.trim()).filter(p => p);
+                if (parts.length >= 2) {
+                    credentials.push({ accountId: parts[0], token: parts[1] });
+                }
+            }
+
+            return credentials;
+        }
+
+        function maskToken(token) {
+            if (token.length <= 8) return '*'.repeat(token.length);
+            return token.substring(0, 4) + '*'.repeat(token.length - 8) + token.substring(token.length - 4);
+        }
+
+        function maskAccountId(id) {
+            if (id.length <= 6) return '*'.repeat(id.length);
+            return id.substring(0, 3) + '*'.repeat(id.length - 6) + id.substring(id.length - 3);
+        }
+
+        async function checkCredential(accountId, token, model) {
+            const startTime = performance.now();
+            const baseURL = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
+
+            try {
+                const response = await fetch(baseURL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            { role: 'system', content: 'You are a helpful assistant. Reply with "OK" only.' },
+                            { role: 'user', content: 'Hello!' }
+                        ],
+                        max_tokens: 5
+                    })
+                });
+
+                const endTime = performance.now();
+                const duration = Math.round(endTime - startTime);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    // 检查是否返回了有效的 AI 响应
+                    if (data.success !== false && (data.result || data.choices)) {
+                        return {
+                            success: true,
+                            duration,
+                            statusCode: response.status,
+                            message: '凭据可用'
+                        };
+                    }
+                }
+
+                let errorMsg = '凭据无效或权限不足';
+                try {
+                    const errorData = await response.json();
+                    if (errorData.errors && errorData.errors.length > 0) {
+                        errorMsg = errorData.errors.map(e => e.message || e).join(', ');
+                    } else if (errorData.message) {
+                        errorMsg = errorData.message;
+                    }
+                } catch (e) {
+                    errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+                }
+
+                return {
+                    success: false,
+                    duration,
+                    statusCode: response.status,
+                    message: errorMsg
+                };
+            } catch (error) {
+                const endTime = performance.now();
+                const duration = Math.round(endTime - startTime);
+
+                let errorMsg = error.message;
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    errorMsg = '网络错误或 CORS 限制，请检查网络连接或使用代理';
+                }
+
+                return {
+                    success: false,
+                    duration,
+                    statusCode: 0,
+                    message: errorMsg
+                };
+            }
+        }
+
+        async function startCheck() {
+            const input = document.getElementById('credentialsInput').value;
+            const credentials = parseCredentials(input);
+
+            if (credentials.length === 0) {
+                alert('请输入有效的凭据，每行格式：ACCOUNT_ID API_TOKEN');
+                return;
+            }
+
+            const model = document.getElementById('modelSelect').value;
+            const checkBtn = document.getElementById('checkBtn');
+            const btnText = document.getElementById('btnText');
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const resultsCard = document.getElementById('resultsCard');
+            const resultList = document.getElementById('resultList');
+
+            // 重置 UI
+            checkBtn.disabled = true;
+            btnText.textContent = '检测中...';
+            progressBar.style.display = 'block';
+            resultsCard.classList.add('active');
+            resultList.innerHTML = '';
+
+            let successCount = 0;
+            let failCount = 0;
+
+            // 更新统计
+            document.getElementById('statTotal').textContent = credentials.length;
+            document.getElementById('statSuccess').textContent = '0';
+            document.getElementById('statFail').textContent = '0';
+
+            for (let i = 0; i < credentials.length; i++) {
+                const { accountId, token } = credentials[i];
+                const currentIndex = i + 1;
+
+                // 更新进度
+                const progress = Math.round((currentIndex / credentials.length) * 100);
+                progressFill.style.width = progress + '%';
+                progressText.textContent = `正在检测第 ${currentIndex}/${credentials.length} 个凭据...`;
+
+                // 执行检测
+                const result = await checkCredential(accountId, token, model);
+
+                if (result.success) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+
+                // 更新统计
+                document.getElementById('statSuccess').textContent = successCount;
+                document.getElementById('statFail').textContent = failCount;
+
+                // 添加结果项
+                const resultItem = document.createElement('div');
+                resultItem.className = `result-item ${result.success ? 'success' : 'fail'}`;
+                resultItem.innerHTML = `
+                    <div class="result-header">
+                        <div class="result-status">
+                            <span class="dot"></span>
+                            <span>${result.success ? '✅ 可用' : '❌ 不可用'}</span>
+                        </div>
+                        <div class="result-time">⏱️ ${result.duration}ms</div>
+                    </div>
+                    <div class="result-details">
+                        <div class="row">
+                            <span class="label">Account ID:</span>
+                            <span class="value">${maskAccountId(accountId)} <span style="color:#666">(${accountId.length}字符)</span></span>
+                        </div>
+                        <div class="row">
+                            <span class="label">API Token:</span>
+                            <span class="value masked" title="悬停查看完整 Token">${maskToken(token)}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">状态码:</span>
+                            <span class="value">${result.statusCode || 'N/A'}</span>
+                        </div>
+                        ${!result.success ? `<div class="row error-msg">❌ ${result.message}</div>` : ''}
+                    </div>
+                `;
+                resultList.appendChild(resultItem);
+
+                // 滚动到最新结果
+                resultItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            // 完成
+            progressText.textContent = `检测完成！共 ${credentials.length} 个凭据，${successCount} 个可用，${failCount} 个不可用。`;
+            checkBtn.disabled = false;
+            btnText.textContent = '重新检测';
+        }
+
+        // 支持 Ctrl+Enter 快捷键
+        document.getElementById('credentialsInput').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                startCheck();
+            }
+        });
+    </script>
+</body>
+</html>
